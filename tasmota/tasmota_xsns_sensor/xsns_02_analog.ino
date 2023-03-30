@@ -452,7 +452,7 @@ float AdcGetRange(uint32_t idx) {
   // formula for calibration: value, fromLow, fromHigh, toLow, toHigh
   // Example: 514, 632, 236, 0, 100
   // int( ((<param2> - <analog-value>) / (<param2> - <param1>) ) * (<param3> - <param4>) ) + <param4> )
-  int adc = AdcRead(Adc[idx].pin, 5);
+  int adc = AdcRead(Adc[idx].pin, 2);
   double adcrange = ( ((double)Adc[idx].param2 - (double)adc) / ( ((double)Adc[idx].param2 - (double)Adc[idx].param1)) * ((double)Adc[idx].param3 - (double)Adc[idx].param4) + (double)Adc[idx].param4 );
   return (float)adcrange;
 }
@@ -520,8 +520,14 @@ void AdcEverySecond(void) {
       }
 #endif
       double BC = (double)Adc[idx].param3 / 10000;                                      // Shelly param3 = 3350 (ANALOG_NTC_B_COEFFICIENT)
-      double T = BC / (BC / ANALOG_T0 + TaylorLog(Rt / (double)Adc[idx].param2));       // Shelly param2 = 10000 (ANALOG_NTC_RESISTANCE)
-      Adc[idx].temperature = ConvertTemp(TO_CELSIUS(T));
+      float R1 = 10000;
+      float c1 = 1.009249522e-03, c2 = 2.378405444e-04, c3 = 2.019202697e-07;
+      float logR2, R2, T;
+      R2 = R1 * (1023.0 / (float)adc - 1.0);
+      logR2 = log(R2);
+      T = (1.0 / (c1 + c2*logR2 + c3*logR2*logR2*logR2));
+      T = T - 273.15;
+      Adc[idx].temperature = T;
     }
     else if (ADC_CT_POWER == Adc[idx].type) {
       AdcGetCurrentPower(idx, 5);
@@ -851,7 +857,7 @@ bool Xsns02(uint32_t function) {
     case FUNC_COMMAND:
       result = DecodeCommand(kAdcCommands, AdcCommand);
       break;
-    case FUNC_SETUP_RING2:
+    case FUNC_MODULE_INIT:
       AdcInit();
       break;
     default:
